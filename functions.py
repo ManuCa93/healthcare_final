@@ -1,5 +1,7 @@
 import pickle 
 import numpy as np
+from scipy.stats import skew, kurtosis
+from scipy import signal as scipy_signal
 
 # === Load all subjects ===
 def load_subject_data(DATA_PATH, subject_id):
@@ -51,4 +53,75 @@ def create_windows(subject_data, window_size_sec, LABEL_SAMPLING_RATE, WRIST_SAM
             window_labels.append(majority)
 
     return windows, np.array(window_labels)
+
+
+# === Feature extraction functions ===
+
+def stat_features(sig, prefix):
+    """Time-domain statistical features for a 1D signal."""
+    return {
+        f'{prefix}_mean': np.mean(sig),
+        f'{prefix}_std': np.std(sig),
+        f'{prefix}_min': np.min(sig),
+        f'{prefix}_max': np.max(sig),
+        f'{prefix}_median': np.median(sig),
+        f'{prefix}_range': np.ptp(sig),
+        f'{prefix}_skew': skew(sig),
+        f'{prefix}_kurtosis': kurtosis(sig),
+        f'{prefix}_rms': np.sqrt(np.mean(sig ** 2)),
+        f'{prefix}_mad': np.mean(np.abs(sig - np.mean(sig))),
+        f'{prefix}_sad': np.sum(np.abs(np.diff(sig))),
+    }
+
+def freq_features(sig, sr, prefix):
+    """Frequency-domain features via Welch PSD."""
+    freqs, psd = scipy_signal.welch(sig, fs=sr, nperseg=min(len(sig), sr))
+    psd_norm = psd / (np.sum(psd) + 1e-12)
+    return {
+        f'{prefix}_total_power': np.sum(psd),
+        f'{prefix}_dom_freq': freqs[np.argmax(psd)] if len(psd) > 0 else 0,
+        f'{prefix}_spectral_entropy': -np.sum(psd_norm * np.log2(psd_norm + 1e-12)),
+    }
+
+def eda_extra_features(sig, sr, prefix='EDA'):
+    """EDA-specific features (peaks, derivatives)."""
+    peaks, props = scipy_signal.find_peaks(sig, height=0, distance=sr)
+    deriv = np.diff(sig)
+    return {
+        f'{prefix}_n_peaks': len(peaks),
+        f'{prefix}_peak_mean_h': np.mean(props['peak_heights']) if len(peaks) > 0 else 0,
+        f'{prefix}_deriv_mean': np.mean(deriv),
+        f'{prefix}_deriv_std': np.std(deriv),
+    }
+
+def extract_window_features(window_data, WRIST_SAMPLING_RATES):
+    """Extract all features from one window."""
+    feats = {}
+
+    # ACC: 3 axes + magnitude
+    acc = window_data['ACC']
+    for axis, name in enumerate(['ACC_x', 'ACC_y', 'ACC_z']):
+        a = acc[:, axis].flatten()
+        feats.update(stat_features(a, name))
+        feats.update(freq_features(a, WRIST_SAMPLING_RATES['ACC'], name))
+    acc_mag = np.linalg.norm(acc, axis=1)
+    feats.update(stat_features(acc_mag, 'ACC_mag'))
+    feats.update(freq_features(acc_mag, WRIST_SAMPLING_RATES['ACC'], 'ACC_mag'))
+
+    # BVP
+    bvp = window_data['BVP'].flatten()
+    feats.update(stat_features(bvp, 'BVP'))
+    feats.update(freq_features(bvp, WRIST_SAMPLING_RATES['BVP'], 'BVP'))
+
+    # EDA (with extras)
+    eda = window_data['EDA'].flatten()
+    feats.update(stat_features(eda, 'EDA'))
+    feats.update(freq_features(eda, WRIST_SAMPLING_RATES['EDA'], 'EDA'))
+    feats.update(eda_extra_features(eda, WRIST_SAMPLING_RATES['EDA']))
+
+    # TEMP
+    temp = window_data['TEMP'].flatten()
+    feats.update(stat_features(temp, 'TEMP'))
+
+    return feats
 
