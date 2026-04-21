@@ -1,3 +1,54 @@
+PROJECT INSTRUCTIONS:
+
+You have methodologies basic instruction, as a starting base
+• Bonus is considered any amelioration, new personal approach added. 
+• You should demonstrate a clear knowledge of the data and related 
+problematics
+• For all projects you should answer: can you apply more advanced AI 
+techniques? 
+• Please use the Journal club checklist integrating it in your project
+• SoA analysis, comments and personal critical consideration related to data 
+access, data quality, explainability, ethical, GDPR, etc. and other
+considerations about challenges of applying AI in Healthcare, are expected in 
+all projects.
+• Use Python
+
+Objective:
+The goal of this project is to develop machine learning models to predict stress conditions from physiological signals collected using wearable devices. The task can be formulated either as a binary classification problem (stress vs. non-stress) or as a multi-class problem (e.g., baseline, stress, amusement). The project focuses on understanding how physiological signals measured at the wrist can be used to detect affective states.
+
+Suggested Methodology:
+
+Data exploration and preprocessing: Load and inspect physiological signals (e.g., BVP, EDA, temperature) 
+Select only data acquired from the wrist-worn device (MUST)(Empatica E4) Apply preprocessing (e.g., filtering, normalization, artifact removal)
+Segment the data into time windows suitable for analysis 
+
+Feature extraction / representation: Extract relevant features from physiological 
+signals (e.g., statistical, temporal, and frequency-based features) 
+Optionally use established libraries (e.g., FLIRT, NeuroKit) or develop a custom feature 
+extraction pipeline Analyze feature relevance and variability across subjects 
+
+Model development: Implement classification models using approaches different from 
+those proposed in the original study Compare multiple methods (e.g., logistic regression, 
+support vector machines, tree-based models, or neural networks) Explore both binary 
+and multi-class formulations of the problem 
+
+Validation strategy:
+MUST Implement a leave-one-subject-out cross-validation scheme to ensure subject-independent evaluation 
+Analyze how model performance generalizes across individuals 
+
+Model evaluation: Evaluate performance using metrics such as accuracy, confusion 
+matrix, precision, recall, F1-score, and ROC curves 
+Compare models and analyze strengths and limitations 
+
+Extension (optional): Investigate personalization vs. general models Explore feature 
+selection or dimensionality reduction Study robustness to noise and inter-subject 
+variability 
+
+! You must use only the data coming from the wrist device (Empatica E4) discarding the signals collected at the level of the chest with the Respiban device. You must use different models than those proposed in the original paper.
+
+-----
+
+
 WESAD Dataset: WEarable Stress and Affect Detection
 
 I. General information
