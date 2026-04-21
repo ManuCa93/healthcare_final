@@ -12,22 +12,25 @@ def load_subject_data(DATA_PATH, subject_id):
     return data
 
 # === Windowing function ===
-def create_windows(subject_data, window_size_sec, LABEL_SAMPLING_RATE, WRIST_SAMPLING_RATES, VALID_LABELS):
-    """Segment wrist signals into fixed-size time windows."""
+def create_windows(subject_data, window_size_sec, window_shift_sec, LABEL_SAMPLING_RATE, WRIST_SAMPLING_RATES, VALID_LABELS):
+    """Segment wrist signals into sliding time windows."""
     labels = subject_data['label'].flatten()
     wrist = subject_data['signal']['wrist']
 
     total_duration = len(labels) / LABEL_SAMPLING_RATE
-    n_windows = int(total_duration // window_size_sec)
+    n_windows = int((total_duration - window_size_sec) // window_shift_sec) + 1
 
     windows = []
     window_labels = []
 
     for i in range(n_windows):
         # Majority vote for window label
-        l_start = int(i * window_size_sec * LABEL_SAMPLING_RATE)
-        l_end = int((i + 1) * window_size_sec * LABEL_SAMPLING_RATE)
+        l_start = int(i * window_shift_sec * LABEL_SAMPLING_RATE)
+        l_end = int((i * window_shift_sec + window_size_sec) * LABEL_SAMPLING_RATE)
         seg = labels[l_start:l_end]
+        if len(seg) == 0:
+            continue
+            
         unique_l, counts_l = np.unique(seg, return_counts=True)
         majority = int(unique_l[np.argmax(counts_l)])
 
@@ -40,8 +43,8 @@ def create_windows(subject_data, window_size_sec, LABEL_SAMPLING_RATE, WRIST_SAM
         window_data = {}
         valid = True
         for sig_name, sr in WRIST_SAMPLING_RATES.items():
-            s_start = int(i * window_size_sec * sr)
-            s_end = int((i + 1) * window_size_sec * sr)
+            s_start = int(i * window_shift_sec * sr)
+            s_end = int((i * window_shift_sec + window_size_sec) * sr)
             if s_end <= len(wrist[sig_name]):
                 window_data[sig_name] = wrist[sig_name][s_start:s_end]
             else:
@@ -54,6 +57,25 @@ def create_windows(subject_data, window_size_sec, LABEL_SAMPLING_RATE, WRIST_SAM
 
     return windows, np.array(window_labels)
 
+
+def butter_lowpass_filter(data, cutoff, fs, order=4):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    if normal_cutoff >= 1.0:
+        normal_cutoff = 0.99
+    b, a = scipy_signal.butter(order, normal_cutoff, btype='low', analog=False)
+    y = scipy_signal.filtfilt(b, a, data)
+    return y
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=4):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    if high >= 1.0:
+        high = 0.99
+    b, a = scipy_signal.butter(order, [low, high], btype='band')
+    y = scipy_signal.filtfilt(b, a, data)
+    return y
 
 # === Feature extraction functions ===
 
@@ -110,11 +132,19 @@ def extract_window_features(window_data, WRIST_SAMPLING_RATES):
 
     # BVP
     bvp = window_data['BVP'].flatten()
+    try:
+        bvp = butter_bandpass_filter(bvp, 0.5, 8.0, WRIST_SAMPLING_RATES['BVP'])
+    except Exception:
+        pass
     feats.update(stat_features(bvp, 'BVP'))
     feats.update(freq_features(bvp, WRIST_SAMPLING_RATES['BVP'], 'BVP'))
 
     # EDA (with extras)
     eda = window_data['EDA'].flatten()
+    try:
+        eda = butter_lowpass_filter(eda, 1.0, WRIST_SAMPLING_RATES['EDA'])
+    except Exception:
+        pass
     feats.update(stat_features(eda, 'EDA'))
     feats.update(freq_features(eda, WRIST_SAMPLING_RATES['EDA'], 'EDA'))
     feats.update(eda_extra_features(eda, WRIST_SAMPLING_RATES['EDA']))
